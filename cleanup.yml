@@ -1,0 +1,55 @@
+---
+- hosts: nanokvm
+  gather_facts: no
+
+  vars:
+    disable_tailscaled: true
+    dhcp_dns: true
+    ssh_keys: https://github.com/markuman.keys
+
+  tasks:
+    - name: disable tailscaled
+      when: disable_tailscaled
+      with_items:
+        - /etc/init.d/S98tailscaled stop
+        - chmod -x /etc/init.d/S98tailscaled
+      ansible.builtin.raw: "{{ item }}"
+
+
+    - name: use dns from dhcp
+      when: dhcp_dns
+      ansible.builtin.raw: |
+        cat <<EOT > /etc/init.d/S99resolv-fix
+        #!/bin/sh
+        mkdir -p /run/network
+        case "$1" in
+          start)
+                echo "Fixing resolv.conf to DHCP version"
+                chattr -i /etc/resolv.conf
+                rm /etc/resolv.conf
+                cp /etc/resolv.conf.dhcp /etc/resolv.conf
+                chattr +i /etc/resolv.conf
+                ;;
+          stop)
+                ;;
+          restart|reload)
+                "$0" stop
+                "$0" start
+                ;;
+          *)
+                echo "Usage: $0 {start|stop|restart}"
+                exit 1
+        esac
+        exit $?
+        EOT
+
+        chmod +x /etc/init.d/S99resolv-fix
+
+
+    - name: get ssh public keys
+      when: ssh_keys is defined and ssh_keys | string is match("^https.*")
+      with_items:
+        - curl {{ ssh_keys }} >> /root/.ssh/authorized_keys
+        - "sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
+      ansible.builtin.raw: "{{ item }}"
+
