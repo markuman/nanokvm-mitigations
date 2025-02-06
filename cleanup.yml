@@ -4,47 +4,29 @@
 
   vars:
     disable_tailscaled: true
-    dhcp_dns: true
+    dns: 9.9.9.9
     ssh_keys: https://github.com/markuman.keys
 
   tasks:
-    - name: disable tailscaled
+    - name: disable tailscald
       when: disable_tailscaled
-      with_items:
-        - /etc/init.d/S98tailscaled stop
-        - chmod -x /etc/init.d/S98tailscaled
-      ansible.builtin.raw: "{{ item }}"
+      block:
+        - name: stop tailscaled
+          ansible.builtin.raw: "bash -l -c '/etc/init.d/S98tailscaled stop'"
+
+        - name: disable tailscaled
+          ansible.builtin.raw: "bash -l -c 'chmod -x /etc/init.d/S98tailscaled'"
+
 
 
     - name: use dns from dhcp
-      when: dhcp_dns
-      ansible.builtin.raw: |
-        cat <<EOT > /etc/init.d/S99resolv-fix
-        #!/bin/sh
-        mkdir -p /run/network
-        case "$1" in
-          start)
-                echo "Fixing resolv.conf to DHCP version"
-                chattr -i /etc/resolv.conf
-                rm /etc/resolv.conf
-                cp /etc/resolv.conf.dhcp /etc/resolv.conf
-                chattr +i /etc/resolv.conf
-                ;;
-          stop)
-                ;;
-          restart|reload)
-                "$0" stop
-                "$0" start
-                ;;
-          *)
-                echo "Usage: $0 {start|stop|restart}"
-                exit 1
-        esac
-        exit $?
-        EOT
+      when: dns is defined
+      block:
+        - name: set nameserver
+          ansible.builtin.raw: "bash -l -c 'echo \"nameserver {{ dns }}\" > /etc/resolv.conf'"
 
-        chmod +x /etc/init.d/S99resolv-fix
-
+        - name: make it immutable
+          ansible.builtin.raw: "bash -l -c 'chattr +i /etc/resolv.conf'"
 
     - name: get ssh public keys
       when: ssh_keys is defined and ssh_keys | string is match("^https.*")
