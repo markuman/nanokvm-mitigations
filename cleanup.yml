@@ -4,6 +4,7 @@
 
   vars:
     disable_tailscaled: true
+    disable_router: true
     dns: 9.9.9.9
     # uncomment and set to your public key url
     #ssh_keys: https://github.com/markuman.keys
@@ -20,7 +21,7 @@
 
 
 
-    - name: use dns from dhcp
+    - name: change nameserver - https://github.com/sipeed/NanoKVM/issues/245
       when: dns is defined
       block:
         - name: set nameserver
@@ -29,10 +30,20 @@
         - name: make it immutable
           ansible.builtin.raw: "bash -l -c 'chattr +i /etc/resolv.conf'"
 
-    - name: get ssh public keys
+    - name: get ssh public keys and disable password auth
       when: ssh_keys is defined and ssh_keys | string is match("^https.*")
       with_items:
         - curl {{ ssh_keys }} >> /root/.ssh/authorized_keys
         - "sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
       ansible.builtin.raw: "{{ item }}"
+
+
+    - name: disable router - https://github.com/sipeed/NanoKVM/issues/197
+      when: disable_router
+      block:
+        - name: empty /etc/sysctl.d/99-tailscale.conf
+          ansible.builtin.raw: echo "" > /etc/sysctl.d/99-tailscale.conf
+
+        - name: immutable /etc/sysctl.d/99-tailscale.conf
+          ansible.builtin.raw: "bash -l -c 'chattr +i /etc/sysctl.d/99-tailscale.conf'"
 
