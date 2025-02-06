@@ -5,7 +5,8 @@
   vars:
     disable_tailscaled: true
     dns: 9.9.9.9
-    ssh_keys: https://github.com/markuman.keys
+    # uncomment and set to your public key url
+    #ssh_keys: https://github.com/markuman.keys
 
   tasks:
     - name: disable tailscald
