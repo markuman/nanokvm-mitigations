@@ -9,17 +9,28 @@
     # uncomment and set to your public key url
     #ssh_keys: https://github.com/markuman.keys
 
+  pre_tasks:
+    - name: check for tailscaled
+      ignore_errors: true
+      raw:
+        test -f /etc/init.d/S98tailscaled
+      register: tailscaled_available
+
+    - name: check for tailscale conf
+      ignore_errors: true
+      raw:
+        test -f /etc/sysctl.d/99-tailscale.conf
+      register: tailscale_conf_available
+
   tasks:
     - name: disable tailscald
-      when: disable_tailscaled
+      when: disable_tailscaled and not tailscaled_available.failed
       block:
         - name: stop tailscaled
           ansible.builtin.raw: "bash -l -c '/etc/init.d/S98tailscaled stop'"
 
         - name: disable tailscaled
           ansible.builtin.raw: "bash -l -c 'chmod -x /etc/init.d/S98tailscaled'"
-
-
 
     - name: change nameserver - https://github.com/sipeed/NanoKVM/issues/245
       when: dns is defined
@@ -37,9 +48,8 @@
         - "sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config"
       ansible.builtin.raw: "{{ item }}"
 
-
     - name: disable router - https://github.com/sipeed/NanoKVM/issues/197
-      when: disable_router
+      when: disable_router and not tailscale_conf_available.failed
       block:
         - name: empty /etc/sysctl.d/99-tailscale.conf
           ansible.builtin.raw: echo "" > /etc/sysctl.d/99-tailscale.conf
